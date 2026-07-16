@@ -1,0 +1,31 @@
+import type { Request, Response } from 'express';
+import * as itemService from '../services/item.service.js';
+import {
+  validateCreateItem,
+  validateItemId,
+  validateSort,
+  validateUpdateItem,
+} from '../utils/item-validation.js';
+
+export async function getItems(request: Request, response: Response): Promise<void> {
+  const { field, order } = validateSort(request.query);
+  const items = await itemService.listItems(field, order);
+  response.json({ items });
+}
+
+export async function postItem(request: Request, response: Response): Promise<void> {
+  const item = await itemService.createItem(validateCreateItem(request.body));
+  response.status(201).json({ item });
+}
+
+export async function putItem(request: Request, response: Response): Promise<void> {
+  const id = validateItemId(request.params.id);
+  const item = await itemService.updateItem(id, validateUpdateItem(request.body));
+  response.json({ item });
+}
+
+export async function removeItem(request: Request, response: Response): Promise<void> {
+  const id = validateItemId(request.params.id);
+  await itemService.deleteItem(id);
+  response.status(204).send();
+}
