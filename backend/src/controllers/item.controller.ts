@@ -1,5 +1,7 @@
 import type { Request, Response } from 'express';
 import * as itemService from '../services/item.service.js';
+import { generateEmailDraft } from '../services/email.service.js';
+import { AppError } from '../utils/app-error.js';
 import {
   validateCreateItem,
   validateItemId,
@@ -33,4 +35,18 @@ export async function removeItem(request: Request, response: Response): Promise<
   const id = validateItemId(request.params.id);
   await itemService.deleteItem(id);
   response.status(204).send();
+}
+
+export async function postDraftEmail(request: Request, response: Response): Promise<void> {
+  const id = validateItemId(request.params.id);
+  const item = await itemService.findItemById(id);
+  if (!item) throw new AppError('Item not found.', 404);
+
+  try {
+    const email = await generateEmailDraft(item);
+    response.json({ email });
+  } catch {
+    // Do not expose provider, timeout, model, or credential details to the client.
+    response.status(502).json({ success: false, message: 'Unable to generate email.' });
+  }
 }

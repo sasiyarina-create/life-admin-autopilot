@@ -54,6 +54,7 @@ export function ItemTable({ items }: { items: Item[] }) {
               <th className="px-5 py-4">Renewal date</th>
               <th className="px-5 py-4">Cancel by date</th>
               <th className="px-5 py-4">Status</th>
+              <th className="px-5 py-4"><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -72,6 +73,9 @@ export function ItemTable({ items }: { items: Item[] }) {
                   <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${statusStyles[item.status]}`}>
                     {humanize(item.status)}
                   </span>
+                </td>
+                <td className="whitespace-nowrap px-5 py-4 text-right">
+                  <Link to={`/email/${item.id}`} className="rounded-lg px-3 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-50">Generate Email</Link>
                 </td>
               </tr>
             ))}

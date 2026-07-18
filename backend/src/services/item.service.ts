@@ -19,6 +19,10 @@ export function deleteItem(id: string) {
   return prisma.item.delete({ where: { id } });
 }
 
+export function findItemById(id: string) {
+  return prisma.item.findUnique({ where: { id } });
+}
+
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
 export type DeadlineType = 'cancelByDate' | 'renewalDate';
