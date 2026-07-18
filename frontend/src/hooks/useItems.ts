@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getItems } from '../services/item-service';
+import { getItems, type ItemSort } from '../services/item-service';
 import type { Item } from '../types/item';
 
 interface UseItemsResult {
@@ -9,7 +9,7 @@ interface UseItemsResult {
   reload: () => void;
 }
 
-export function useItems(): UseItemsResult {
+export function useItems(sortBy: ItemSort = 'cancelByDate'): UseItemsResult {
   const [items, setItems] = useState<Item[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +22,7 @@ export function useItems(): UseItemsResult {
     setIsLoading(true);
     setError(null);
 
-    void getItems()
+    void getItems(sortBy)
       .then((nextItems) => {
         if (isActive) setItems(nextItems);
       })
@@ -38,7 +38,7 @@ export function useItems(): UseItemsResult {
     return () => {
       isActive = false;
     };
-  }, [requestVersion]);
+  }, [requestVersion, sortBy]);
 
   return { items, isLoading, error, reload };
 }

@@ -1,7 +1,12 @@
 import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { AttentionItems } from '../components/AttentionItems';
 import { ItemTable } from '../components/ItemTable';
 import { SummaryCard } from '../components/SummaryCard';
 import { useItems } from '../hooks/useItems';
+import { useUpcomingItems } from '../hooks/useUpcomingItems';
+import type { ItemStatus, ItemType } from '../types/item';
+import type { ItemSort } from '../services/item-service';
 
 function normalizeCurrency(currency: string) {
   const currencyMap: Record<string, string> = {
@@ -51,9 +56,22 @@ function getRecurringSummary(items: ReturnType<typeof useItems>['items']) {
 }
 
 export function DashboardPage() {
-  const { items, isLoading, error, reload } = useItems();
+  const [typeFilter, setTypeFilter] = useState<ItemType | 'ALL'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<ItemStatus | 'ALL'>('ALL');
+  const [sortBy, setSortBy] = useState<ItemSort>('cancelByDate');
+  const { items, isLoading, error, reload } = useItems(sortBy);
+  const upcoming = useUpcomingItems();
   const recurringSummary = getRecurringSummary(items);
   const reviewCount = items.filter((item) => item.status === 'NEEDS_REVIEW').length;
+  const visibleItems = items.filter(
+    (item) => (typeFilter === 'ALL' || item.type === typeFilter) && (statusFilter === 'ALL' || item.status === statusFilter),
+  );
+  const nearest = upcoming.items[0];
+  const deadlineDetail = upcoming.isLoading
+    ? 'Loading deadline details…'
+    : nearest
+      ? `${nearest.attention.daysUntil === 0 ? 'Due today' : `${nearest.attention.daysUntil} days until nearest deadline`}`
+      : 'No deadlines in the next 14 days';
 
   return (
     <div className="space-y-8">
@@ -92,10 +110,23 @@ export function DashboardPage() {
 
         <SummaryCard
           label="Upcoming deadlines"
-          value="—"
-          detail="Deadline calculation arrives in a later milestone"
-          tone="slate"
+          value={upcoming.isLoading ? '—' : String(upcoming.items.length)}
+          detail={deadlineDetail}
+          tone={nearest?.attention.daysUntil !== undefined && nearest.attention.daysUntil <= 7 ? 'amber' : 'slate'}
         />
+      </section>
+
+      <section>
+        <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight text-slate-950">Needs Attention This Week</h2>
+            <p className="mt-1 text-sm text-slate-500">Renewal and cancellation deadlines within the next 14 days.</p>
+          </div>
+          {!upcoming.isLoading && <span className="text-sm text-slate-500">{upcoming.items.length} upcoming</span>}
+        </div>
+        {upcoming.isLoading && <div className="h-44 animate-pulse rounded-2xl bg-slate-200" role="status"><span className="sr-only">Loading upcoming deadlines</span></div>}
+        {upcoming.error && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700" role="alert">Could not load upcoming deadlines. <button type="button" onClick={upcoming.reload} className="font-semibold underline">Try again</button></div>}
+        {!upcoming.isLoading && !upcoming.error && <AttentionItems items={upcoming.items} />}
       </section>
 
       <section>
@@ -104,16 +135,20 @@ export function DashboardPage() {
             <h2 className="text-xl font-semibold tracking-tight text-slate-950">
               Your items
             </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Sorted by cancel-by date.
-            </p>
+            <p className="mt-1 text-sm text-slate-500">Filter and sort your saved records.</p>
           </div>
 
           {!isLoading && !error && (
             <span className="text-sm text-slate-500">
-              {items.length} total
+              {visibleItems.length} of {items.length} total
             </span>
           )}
+        </div>
+
+        <div className="mb-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-3">
+          <label className="text-sm font-medium text-slate-700">Type<select className="mt-1.5" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as ItemType | 'ALL')}><option value="ALL">All types</option><option value="SUBSCRIPTION">Subscription</option><option value="BILL">Bill</option><option value="WARRANTY">Warranty</option><option value="APPOINTMENT">Appointment</option><option value="OTHER">Other</option></select></label>
+          <label className="text-sm font-medium text-slate-700">Status<select className="mt-1.5" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as ItemStatus | 'ALL')}><option value="ALL">All statuses</option><option value="ACTIVE">Active</option><option value="NEEDS_REVIEW">Needs review</option><option value="CANCELLED">Cancelled</option><option value="EXPIRED">Expired</option></select></label>
+          <label className="text-sm font-medium text-slate-700">Sort by<select className="mt-1.5" value={sortBy} onChange={(event) => setSortBy(event.target.value as ItemSort)}><option value="renewalDate">Renewal date</option><option value="cancelByDate">Cancel date</option><option value="vendorName">Vendor name</option></select></label>
         </div>
 
         {isLoading && (
@@ -149,7 +184,7 @@ export function DashboardPage() {
           </div>
         )}
 
-        {!isLoading && !error && <ItemTable items={items} />}
+        {!isLoading && !error && <ItemTable items={visibleItems} />}
       </section>
     </div>
   );

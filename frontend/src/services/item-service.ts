@@ -1,12 +1,18 @@
-import type { Item, ItemDraft } from '../types/item';
+import type { Item, ItemDraft, UpcomingItem } from '../types/item';
 import { request } from './api';
 
 interface ItemsResponse {
   items: Item[];
 }
 
-export function getItems(): Promise<Item[]> {
-  return request<ItemsResponse>('/api/items?sortBy=cancelByDate&sortOrder=asc').then((response) => response.items);
+export type ItemSort = 'cancelByDate' | 'renewalDate' | 'vendorName';
+
+export function getItems(sortBy: ItemSort = 'cancelByDate'): Promise<Item[]> {
+  return request<ItemsResponse>(`/api/items?sortBy=${sortBy}&sortOrder=asc`).then((response) => response.items);
+}
+
+export function getUpcomingItems(): Promise<UpcomingItem[]> {
+  return request<{ items: UpcomingItem[] }>('/api/items/upcoming').then((response) => response.items);
 }
 
 export function createItem(draft: ItemDraft): Promise<Item> {

@@ -13,6 +13,11 @@ export async function getItems(request: Request, response: Response): Promise<vo
   response.json({ items });
 }
 
+export async function getUpcomingItems(_request: Request, response: Response): Promise<void> {
+  const items = await itemService.getUpcomingDeadlines();
+  response.json({ items });
+}
+
 export async function postItem(request: Request, response: Response): Promise<void> {
   const item = await itemService.createItem(validateCreateItem(request.body));
   response.status(201).json({ item });

@@ -115,14 +115,14 @@ export function validateItemId(id: unknown): string {
   return id;
 }
 
-export type ItemSortField = 'cancelByDate' | 'renewalDate';
+export type ItemSortField = 'cancelByDate' | 'renewalDate' | 'vendorName';
 export type SortOrder = 'asc' | 'desc';
 
 export function validateSort(query: Record<string, unknown>): { field: ItemSortField; order: SortOrder } {
   const field = query.sortBy ?? 'cancelByDate';
   const order = query.sortOrder ?? 'asc';
-  if (field !== 'cancelByDate' && field !== 'renewalDate') {
-    throw new AppError('sortBy must be cancelByDate or renewalDate.', 400);
+  if (field !== 'cancelByDate' && field !== 'renewalDate' && field !== 'vendorName') {
+    throw new AppError('sortBy must be cancelByDate, renewalDate, or vendorName.', 400);
   }
   if (order !== 'asc' && order !== 'desc') {
     throw new AppError('sortOrder must be asc or desc.', 400);

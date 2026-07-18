@@ -39,3 +39,11 @@ export type ItemDraft = ExtractedItem & {
   sourceType: SourceType;
   sourceRawText: string | null;
 };
+
+export interface UpcomingItem extends Item {
+  attention: {
+    deadlineType: 'cancelByDate' | 'renewalDate';
+    deadline: string;
+    daysUntil: number;
+  };
+}
