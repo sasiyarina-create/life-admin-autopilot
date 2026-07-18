@@ -18,3 +18,24 @@ export interface Item {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface ExtractedItem {
+  type: ItemType | null;
+  merchant: string | null;
+  subscription: string | null;
+  vendorName: string | null;
+  amount: number | null;
+  currency: string | null;
+  frequency: 'monthly' | 'weekly' | 'yearly' | 'unknown' | null;
+  renewalDate: string | null;
+  cancelBefore: string | null;
+  cancelByDate: string | null;
+  status: ItemStatus;
+  confidence: number;
+  notes: string | null;
+}
+
+export type ItemDraft = ExtractedItem & {
+  sourceType: SourceType;
+  sourceRawText: string | null;
+};

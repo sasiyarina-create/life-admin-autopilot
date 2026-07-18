@@ -108,8 +108,8 @@ export function validateUpdateItem(body: unknown): MutableItemInput {
   return readInput(body, true);
 }
 
-export function validateItemId(id: string): string {
-  if (!/^c[a-z0-9]{8,}$/i.test(id)) {
+export function validateItemId(id: unknown): string {
+  if (typeof id !== 'string' || !/^c[a-z0-9]{8,}$/i.test(id)) {
     throw new AppError('Invalid item ID.', 400);
   }
   return id;
