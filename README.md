@@ -1,4 +1,4 @@
-# Life Admin Autopilot
+# Tendley
 
 An AI-powered personal administration assistant that transforms emails and documents into organized records, deadlines, and actionable insights.
 
@@ -324,6 +324,38 @@ AI is used for:
 The AI pipeline includes validation steps before database insertion to ensure extracted records maintain reliability and accuracy.
 
 ---
+## AI Development Process: Codex & GPT-5.6
+
+During the development of Tendly, I used OpenAI Codex and GPT-5.6 as AI development assistants to improve productivity, code quality, and problem-solving.
+
+### How Codex was used
+
+Codex helped accelerate my development process by assisting with:
+
+- Generating and improving frontend components
+- Debugging implementation issues
+- Refactoring code for better structure and maintainability
+- Explaining unfamiliar code and suggesting improvements
+- Assisting with API integrations and backend development
+
+I used Codex as a coding partner to iterate faster while maintaining control over the final implementation and design decisions.
+
+### How GPT-5.6 was used
+
+GPT-5.6 supported my development process by helping with:
+
+- Brainstorming product ideas and user workflows
+- Designing system architecture and feature planning
+- Improving user experience decisions
+- Reviewing technical approaches
+- Generating documentation and project descriptions
+- Refining the presentation and demo flow
+
+GPT-5.6 helped me transform an initial idea into a structured AI-powered application by providing guidance and feedback throughout the development process.
+
+### AI-Assisted Development Approach
+
+I combined my own development decisions with AI assistance. These tools helped me move faster, explore different solutions, and overcome technical challenges, while I remained responsible for implementation, testing, and the final direction of Tendly.
 
 # Installation
 
