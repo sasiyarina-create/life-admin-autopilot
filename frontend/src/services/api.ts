@@ -11,6 +11,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const payload = (await response.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(payload?.message ?? 'Unable to load data.', response.status);
   }
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 

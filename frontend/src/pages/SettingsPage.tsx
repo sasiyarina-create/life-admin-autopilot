@@ -1,0 +1,16 @@
+import { useEffect, useState } from 'react';
+import { CheckCircle2, RefreshCw, Unplug } from 'lucide-react';
+import { request } from '../services/api';
+import { useToast } from '../components/ToastProvider';
+import { useNavigate } from 'react-router-dom';
+
+type Status = { connected: boolean; email: string | null; lastSync: string | null; emailsImported: number };
+type SyncResult = { scanned: number; relevant: number; imported: number; skipped: number; duplicates: number; failed: number };
+export function SettingsPage() {
+  const [status, setStatus] = useState<Status | null>(null); const [busy, setBusy] = useState(false); const [message, setMessage] = useState(''); const { success } = useToast(); const navigate = useNavigate();
+  const load = () => request<Status>('/api/gmail/status').then(setStatus).catch((e: Error) => setMessage(e.message));
+  useEffect(() => { void load(); }, []);
+  async function sync() { setBusy(true); setMessage(''); try { const result = await request<SyncResult & { pending: number }>('/api/gmail/sync', { method: 'POST' }); const summary = `Scanned ${result.scanned} · Relevant ${result.relevant} · Pending review ${result.pending} · Skipped ${result.skipped} · Duplicates ${result.duplicates} · Failed ${result.failed}`; setMessage(summary); success(`Gmail synced · ${result.pending} suggestions ready for review.`); await load(); navigate('/ai-inbox'); } catch (e) { setMessage(e instanceof Error ? e.message : 'Sync failed.'); } finally { setBusy(false); } }
+  async function disconnect() { setBusy(true); try { await request<void>('/api/gmail/disconnect', { method: 'POST' }); setStatus({ connected: false, email: null, lastSync: null, emailsImported: 0 }); success('Gmail has been disconnected.'); } finally { setBusy(false); } }
+  return <div className="page-stack"><section className="page-hero"><div><span className="eyebrow">Settings</span><h1>Connected services</h1><p>Manage the accounts that keep your life admin up to date.</p></div></section><section className="detail-card gmail-settings-card"><div className="section-heading"><div><span className="eyebrow">Gmail</span><h2>Inbox connection</h2></div>{status?.connected && <span className="status success"><CheckCircle2 size={15} />Connected</span>}</div>{status?.connected ? <><p className="settings-email">{status.email}</p><p className="settings-note">Last sync: {status.lastSync ? new Date(status.lastSync).toLocaleString() : 'Not yet synced'} · {status.emailsImported} emails imported</p><div className="button-row"><button className="button primary" onClick={() => void sync()} disabled={busy}><RefreshCw size={17} />{busy ? 'Syncing…' : 'Sync Gmail'}</button></div><div className="danger-zone"><div><strong>Disconnect Gmail</strong><p>Stop future imports. Your existing Tendly records remain safely stored.</p></div><button className="button danger-ghost" onClick={() => void disconnect()} disabled={busy}><Unplug size={17} />Disconnect</button></div></> : <><p className="settings-note">Connect Gmail for read-only import of subscriptions, bills, warranties, and appointments.</p><a className="button primary" href="/api/auth/google">Connect Gmail</a></>}{message && <p className="inline-error">{message}</p>}</section></div>;
+}

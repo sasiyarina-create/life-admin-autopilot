@@ -20,6 +20,13 @@ export async function getUpcomingItems(_request: Request, response: Response): P
   response.json({ items });
 }
 
+export async function getItem(request: Request, response: Response): Promise<void> {
+  const id = validateItemId(request.params.id);
+  const item = await itemService.findItemById(id);
+  if (!item) throw new AppError('Item not found.', 404);
+  response.json({ item });
+}
+
 export async function postItem(request: Request, response: Response): Promise<void> {
   const item = await itemService.createItem(validateCreateItem(request.body));
   response.status(201).json({ item });

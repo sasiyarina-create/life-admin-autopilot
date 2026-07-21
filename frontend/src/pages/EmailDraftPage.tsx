@@ -1,54 +1,44 @@
 import { useState } from 'react';
+import { ArrowLeft, Clipboard, Sparkles } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
+import { useToast } from '../components/ToastProvider';
 import { generateEmailDraft } from '../services/email-service';
 
 export function EmailDraftPage() {
   const { id } = useParams();
+  const { success } = useToast();
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  async function handleGenerate() {
+  async function generate() {
     if (!id) return;
+    setLoading(true);
     setError(null);
-    setCopied(false);
-    setIsGenerating(true);
     try {
       setEmail(await generateEmailDraft(id));
-    } catch (generationError) {
-      setError(generationError instanceof Error ? generationError.message : 'Unable to generate email.');
+      success('Your email draft is ready to edit.');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to generate email.');
     } finally {
-      setIsGenerating(false);
+      setLoading(false);
     }
   }
 
-  async function handleCopy() {
-    if (!email) return;
+  async function copy() {
     try {
       await navigator.clipboard.writeText(email);
       setCopied(true);
+      success('Draft copied to clipboard.');
     } catch {
-      setError('Unable to copy the email. Please copy it manually.');
+      setError('Unable to copy. Please copy manually.');
     }
   }
 
-  return (
-    <section className="mx-auto max-w-3xl">
-      <Link to="/" className="text-sm font-semibold text-indigo-700 hover:text-indigo-600">← Back to dashboard</Link>
-      <p className="mt-6 text-sm font-semibold text-indigo-600">Email draft</p>
-      <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">Request help from a vendor</h1>
-      <p className="mt-2 text-slate-600">Generate an editable cancellation, dispute, refund, or warranty email. Nothing is sent automatically.</p>
+  return <div className="draft-page"><Link to="/" className="back-link"><ArrowLeft size={16} />All records</Link><div className="detail-head"><div><span className="eyebrow">Vendor outreach</span><h1>Draft cancellation email</h1><p>Generate a thoughtful message, then edit it before sending it yourself.</p></div><button className="button primary" disabled={loading} onClick={() => void generate()}><Sparkles size={16} />{loading ? 'Generating…' : 'Generate draft'}</button></div><div className="form-card draft-editor-card"><Field label="Your editable draft"><textarea className="email-editor" rows={19} value={email} onChange={(event) => { setEmail(event.target.value); setCopied(false); }} placeholder="Your editable email draft will appear here." /></Field>{error && <div className="inline-error">{error}</div>}<div className="form-actions sticky-draft-actions"><span className="muted">Nothing is sent automatically.</span><button className="button secondary" disabled={!email} onClick={() => void copy()}><Clipboard size={16} />{copied ? 'Copied' : 'Copy draft'}</button></div></div></div>;
+}
 
-      <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <label className="block text-sm font-medium text-slate-700" htmlFor="email-draft">Draft</label>
-        <textarea id="email-draft" rows={18} value={email} onChange={(event) => { setEmail(event.target.value); setCopied(false); }} placeholder="Click Generate to create an email draft." className="mt-2 font-mono text-sm leading-6" />
-        {error && <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" role="alert">{error}</div>}
-        <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <button type="button" disabled={!email} onClick={handleCopy} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">{copied ? 'Copied' : 'Copy to Clipboard'}</button>
-          <button type="button" disabled={!id || isGenerating} onClick={() => void handleGenerate()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60">{isGenerating && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-r-transparent" aria-hidden="true" />}{isGenerating ? 'Generating…' : 'Generate'}</button>
-        </div>
-      </div>
-    </section>
-  );
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return <label className="field"><span>{label}</span>{children}</label>;
 }

@@ -1,16 +1,22 @@
-import { Link, useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { ArrowLeft, LoaderCircle, Mail, Save, Trash2 } from 'lucide-react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { deleteItem, getItem, updateItem } from '../services/item-service';
+import type { Item, ItemStatus, ItemType } from '../types/item';
+import { useToast } from '../components/ToastProvider';
+import { ConfidenceExplanation } from '../components/ConfidenceExplanation';
+import { normalizeCurrency } from '../utils/currency';
 
+const types: ItemType[] = ['SUBSCRIPTION', 'BILL', 'WARRANTY', 'APPOINTMENT', 'OTHER']; const statuses: ItemStatus[] = ['ACTIVE', 'NEEDS_REVIEW', 'CANCELLED', 'EXPIRED'];
+const date = (value: string | null) => value?.slice(0, 10) ?? '';
 export function ItemDetailPage() {
-  const { id } = useParams();
-
-  return (
-    <section className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center shadow-sm">
-      <p className="text-sm font-semibold text-indigo-600">Coming next</p>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Item details</h1>
-      <p className="mx-auto mt-3 max-w-lg text-slate-600">The detail workflow for item {id ? <code className="rounded bg-slate-100 px-1.5 py-0.5 text-sm">{id}</code> : 'records'} will be added in a later milestone.</p>
-      <Link to="/" className="mt-6 inline-flex text-sm font-semibold text-indigo-700 hover:text-indigo-600">
-        Back to dashboard
-      </Link>
-    </section>
-  );
+  const { id } = useParams(); const navigate = useNavigate(); const { success } = useToast(); const [item, setItem] = useState<Item | null>(null); const [error, setError] = useState<string | null>(null); const [saving, setSaving] = useState(false); const [confirmDelete, setConfirmDelete] = useState(false);
+  useEffect(() => { if (id) void getItem(id).then(setItem).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Unable to load this item.')); }, [id]);
+  if (error) return <div className="inline-error">{error}</div>; if (!item) return <div className="loading-page"><LoaderCircle className="spin" />Loading record…</div>;
+  const record = item;
+  const set = <K extends keyof Item>(key: K, value: Item[K]) => setItem((current) => current ? { ...current, [key]: value } : current);
+  async function save() { if (!id) return; setSaving(true); setError(null); try { await updateItem(id, { ...record, renewalDate: record.renewalDate ? new Date(`${date(record.renewalDate)}T00:00:00.000Z`).toISOString() : null, cancelByDate: record.cancelByDate ? new Date(`${date(record.cancelByDate)}T00:00:00.000Z`).toISOString() : null, currency: normalizeCurrency(record.currency) }); success('Changes saved.'); navigate('/'); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to save this item.'); } finally { setSaving(false); } }
+  async function remove() { if (!id) return; try { await deleteItem(id); navigate('/'); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to delete this item.'); } }
+  return <div className="detail-page"><Link to="/" className="back-link"><ArrowLeft size={16} />All records</Link><div className="detail-head"><div><span className="eyebrow">Record details</span><h1>{record.vendorName}</h1><p>Update the information stored for this record.</p></div><div className="detail-actions"><ConfidenceExplanation item={record} /><Link className="button secondary" to={`/email/${record.id}`}><Mail size={16} />Draft email</Link></div></div><div className="form-card"><div className="form-grid"><Field label="Vendor"><input value={record.vendorName} onChange={(event) => set('vendorName', event.target.value)} /></Field><Field label="Type"><select value={record.type} onChange={(event) => set('type', event.target.value as ItemType)}>{types.map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Amount"><input type="number" min="0" value={record.amount ?? ''} onChange={(event) => set('amount', event.target.value ? Number(event.target.value) : null)} /></Field><Field label="Currency"><input value={record.currency ?? ''} onChange={(event) => set('currency', event.target.value.toUpperCase() || null)} /></Field><Field label="Renewal date"><input type="date" value={date(record.renewalDate)} onChange={(event) => set('renewalDate', event.target.value || null)} /></Field><Field label="Cancel by"><input type="date" value={date(record.cancelByDate)} onChange={(event) => set('cancelByDate', event.target.value || null)} /></Field><Field label="Status"><select value={record.status} onChange={(event) => set('status', event.target.value as ItemStatus)}>{statuses.map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Confidence"><input type="number" min="0" max="1" step="0.01" value={record.confidence ?? ''} onChange={(event) => set('confidence', event.target.value ? Number(event.target.value) : null)} /></Field></div><Field label="Notes"><textarea rows={5} value={record.notes ?? ''} onChange={(event) => set('notes', event.target.value || null)} /></Field>{error && <div className="inline-error">{error}</div>}{confirmDelete&&<div className="inline-error">Delete {record.vendorName}? <button onClick={()=>void remove()}>Delete permanently</button> <button onClick={()=>setConfirmDelete(false)}>Cancel</button></div>}<div className="form-actions"><button className="button danger-ghost" onClick={() => setConfirmDelete(true)}><Trash2 size={16} />Delete</button><button className="button primary" disabled={saving} onClick={() => void save()}><Save size={16} />{saving ? 'Saving…' : 'Save changes'}</button></div></div></div>;
 }
+function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="field"><span>{label}</span>{children}</label>; }

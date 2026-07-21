@@ -1,32 +1,36 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { BarChart3, Bell, CircleUserRound, History, Inbox, LayoutDashboard, LogOut, Settings2, UploadCloud } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import logo from '../assets/logo.png';
+import { useAuth } from '../hooks/useAuth';
+import { request } from '../services/api';
 
-const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-  `rounded-lg px-3 py-2 text-sm font-medium transition ${
-    isActive ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-  }`;
+const links = [
+  { to: '/', label: 'Overview', icon: LayoutDashboard },
+  { to: '/upload', label: 'Upload', icon: UploadCloud },
+  { to: '/ai-inbox', label: 'AI Inbox', icon: Inbox },
+  { to: '/analytics', label: 'Analytics', icon: BarChart3 },
+  { to: '/imports', label: 'Import history', icon: History },
+  { to: '/settings', label: 'Settings', icon: Settings2 },
+];
 
 export function AppLayout() {
-  return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-          <NavLink to="/" className="flex items-center gap-3 font-semibold tracking-tight text-slate-950">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-indigo-600 text-base text-white">L</span>
-            <span>Life Admin Autopilot</span>
-          </NavLink>
-          <nav className="flex items-center gap-1" aria-label="Primary navigation">
-            <NavLink to="/" end className={navLinkClass}>
-              Dashboard
-            </NavLink>
-            <NavLink to="/upload" className={navLinkClass}>
-              Add document
-            </NavLink>
-          </nav>
-        </div>
-      </header>
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <Outlet />
-      </main>
-    </div>
-  );
+  const { user, logout } = useAuth();
+  const [gmail, setGmail] = useState<{ connected: boolean; email: string | null } | null>(null);
+  const navigate = useNavigate();
+  useEffect(() => { void request<{ connected: boolean; email: string | null }>('/api/gmail/status').then(setGmail).catch(() => undefined); }, []);
+  async function signOut() {
+    await logout();
+    navigate('/login');
+  }
+
+  return <div className="app-shell">
+    <aside className="sidebar">
+      <NavLink to="/" className="brand" aria-label="Tendly home"><img className="brand-mark" src={logo} alt="" /><span>Tendly</span></NavLink>
+      <p className="workspace-label">Workspace</p>
+      <nav className="sidebar-nav">{links.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon size={18} />{label}</NavLink>)}</nav>
+      <div className="sidebar-account"><div className="sidebar-footer"><div className="avatar">{user?.picture ? <img src={user.picture} alt="" /> : <CircleUserRound size={18} />}</div><div><strong>{user?.name ?? 'Personal space'}</strong><span>{user?.email ?? 'Signed in'}</span></div><button className="logout-button" onClick={() => void signOut()} aria-label="Log out"><LogOut size={16} /></button></div><p className={`connection-state ${gmail?.connected ? 'connected' : ''}`}><i />{gmail?.connected ? `Gmail connected${gmail.email ? ` · ${gmail.email}` : ''}` : 'Gmail not connected'}</p><p className="version-label">Tendly · Version 1.0<br />Built for Hackathon 2026</p></div>
+    </aside>
+    <div className="app-main"><header className="topbar"><div className="mobile-brand"><img src={logo} alt="" />Tendly</div><button className="icon-button" aria-label="Notifications"><Bell size={19} /></button></header><main className="content"><Outlet /></main></div>
+  </div>;
 }

@@ -1,154 +1,23 @@
 import { type ChangeEvent, type FormEvent, type ReactNode, useState } from 'react';
+import { FileImage, FileText, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { extractFromImage, extractFromText } from '../services/extraction-service';
 import { createItem } from '../services/item-service';
 import type { ExtractedItem, ItemDraft, ItemStatus, ItemType } from '../types/item';
+import { useToast } from '../components/ToastProvider';
+import { ConfidenceExplanation } from '../components/ConfidenceExplanation';
+import { normalizeCurrency } from '../utils/currency';
 
-const allowedTypes: ItemType[] = ['SUBSCRIPTION', 'BILL', 'WARRANTY', 'APPOINTMENT', 'OTHER'];
-const allowedStatuses: ItemStatus[] = ['ACTIVE', 'CANCELLED', 'EXPIRED', 'NEEDS_REVIEW'];
-const maxBytes = 10 * 1024 * 1024;
-
-function toDateInput(value: string | null) {
-  return value ? value.slice(0, 10) : '';
-}
-
-function asDraft(item: ExtractedItem, sourceType: ItemDraft['sourceType'], sourceRawText: string | null): ItemDraft {
-  return { ...item, type: item.type ?? 'OTHER', merchant: item.merchant ?? item.vendorName ?? '', subscription: item.subscription ?? '', currency: item.currency ?? '', notes: item.notes ?? '', sourceType, sourceRawText };
-}
-
+const types: ItemType[] = ['SUBSCRIPTION', 'BILL', 'WARRANTY', 'APPOINTMENT', 'OTHER']; const statuses: ItemStatus[] = ['ACTIVE', 'NEEDS_REVIEW', 'CANCELLED', 'EXPIRED']; const maxBytes = 10 * 1024 * 1024;
+const toDate = (value: string | null) => value?.slice(0, 10) ?? '';
+const draftFrom = (item: ExtractedItem, sourceType: ItemDraft['sourceType'], sourceRawText: string | null): ItemDraft => ({ ...item, type: item.type ?? 'OTHER', merchant: item.merchant ?? item.vendorName ?? '', subscription: item.subscription ?? '', currency: normalizeCurrency(item.currency), notes: item.notes ?? '', sourceType, sourceRawText });
 export function UploadPage() {
-  const navigate = useNavigate();
-  const [mode, setMode] = useState<'image' | 'text'>('image');
-  const [file, setFile] = useState<File | null>(null);
-  const [text, setText] = useState('');
-  const [draft, setDraft] = useState<ItemDraft | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isExtracting, setIsExtracting] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-
-  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const selected = event.target.files?.[0] ?? null;
-    setError(null);
-    if (!selected) return setFile(null);
-    if (!['image/png', 'image/jpeg'].includes(selected.type)) {
-      setFile(null);
-      setError('Invalid file type. Please choose a PNG, JPG, or JPEG image.');
-      return;
-    }
-    if (selected.size > maxBytes) {
-      setFile(null);
-      setError('File is too large. Maximum size is 10 MB.');
-      return;
-    }
-    setFile(selected);
-  }
-
-  async function handleExtract(event: FormEvent) {
-    event.preventDefault();
-    setError(null);
-    setIsExtracting(true);
-    try {
-      if (mode === 'image') {
-        if (!file) throw new Error('Choose a PNG, JPG, or JPEG image first.');
-        setDraft(asDraft(await extractFromImage(file), 'PHOTO', null));
-      } else {
-        if (!text.trim()) throw new Error('Paste email text before extracting.');
-        setDraft(asDraft(await extractFromText(text), 'EMAIL', text.trim()));
-      }
-    } catch (extractionError) {
-      setError(extractionError instanceof Error ? extractionError.message : 'Could not extract information. Please enter manually.');
-    } finally {
-      setIsExtracting(false);
-    }
-  }
-
-  function updateDraft<K extends keyof ItemDraft>(field: K, value: ItemDraft[K]) {
-    setDraft((current) => (current ? { ...current, [field]: value } : current));
-  }
-
-  async function handleSave(event: FormEvent) {
-    event.preventDefault();
-    if (!draft) return;
-    setError(null);
-    setIsSaving(true);
-    try {
-      await createItem({
-        ...draft,
-        amount: draft.amount === null ? null : Number(draft.amount),
-        renewalDate: draft.renewalDate ? new Date(`${draft.renewalDate}T00:00:00.000Z`).toISOString() : null,
-        cancelByDate: draft.cancelByDate ? new Date(`${draft.cancelByDate}T00:00:00.000Z`).toISOString() : null,
-        currency: draft.currency?.trim() || null,
-        notes: draft.notes?.trim() || null,
-      });
-      navigate('/');
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Could not save this item.');
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  if (draft) {
-    return (
-      <section className="mx-auto max-w-3xl">
-        <p className="text-sm font-semibold text-indigo-600">Review extraction</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">Confirm the item details</h1>
-        <p className="mt-2 text-slate-600">Review and edit the extraction before saving it to your dashboard.</p>
-        <form onSubmit={handleSave} className="mt-8 space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="grid gap-5 sm:grid-cols-2">
-            <Field label="Type"><select value={draft.type ?? 'OTHER'} onChange={(event) => updateDraft('type', event.target.value as ItemType)}>{allowedTypes.map((type) => <option key={type} value={type}>{type.replace('_', ' ')}</option>)}</select></Field>
-            <Field label="Status"><select value={draft.status} onChange={(event) => updateDraft('status', event.target.value as ItemStatus)}>{allowedStatuses.map((status) => <option key={status} value={status}>{status.replace('_', ' ')}</option>)}</select></Field>
-            <Field label="Merchant / vendor"><input required value={draft.vendorName ?? ''} onChange={(event) => { updateDraft('vendorName', event.target.value); updateDraft('merchant', event.target.value); }} placeholder="e.g. Spotify" /></Field>
-            <Field label="Subscription name"><input value={draft.subscription ?? ''} onChange={(event) => updateDraft('subscription', event.target.value)} placeholder="e.g. Spotify Premium" /></Field>
-            <Field label="Amount"><input type="number" min="0" step="0.01" value={draft.amount ?? ''} onChange={(event) => updateDraft('amount', event.target.value === '' ? null : Number(event.target.value))} /></Field>
-            <Field label="Currency"><input value={draft.currency ?? ''} onChange={(event) => updateDraft('currency', event.target.value.toUpperCase())} placeholder="e.g. USD" maxLength={3} /></Field>
-            <Field label="Billing frequency"><select value={draft.frequency ?? 'unknown'} onChange={(event) => updateDraft('frequency', event.target.value as ItemDraft['frequency'])}><option value="monthly">Monthly</option><option value="weekly">Weekly</option><option value="yearly">Yearly</option><option value="unknown">Unknown</option></select></Field>
-            <Field label="Confidence (0–1)"><input type="number" min="0" max="1" step="0.01" value={draft.confidence} onChange={(event) => updateDraft('confidence', Number(event.target.value))} /></Field>
-            <Field label="Renewal date"><input type="date" value={toDateInput(draft.renewalDate)} onChange={(event) => updateDraft('renewalDate', event.target.value || null)} /></Field>
-            <Field label="Cancel by date"><input type="date" value={toDateInput(draft.cancelByDate)} onChange={(event) => updateDraft('cancelByDate', event.target.value || null)} /></Field>
-          </div>
-          <Field label="Notes"><textarea rows={4} value={draft.notes ?? ''} onChange={(event) => updateDraft('notes', event.target.value)} /></Field>
-          {error && <ErrorNotice message={error} />}
-          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            <button type="button" onClick={() => setDraft(null)} className="rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">Start over</button>
-            <button disabled={isSaving} className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60">{isSaving ? 'Saving…' : 'Save item'}</button>
-          </div>
-        </form>
-      </section>
-    );
-  }
-
-  return (
-    <section className="mx-auto max-w-2xl">
-      <p className="text-sm font-semibold text-indigo-600">Add an item</p>
-      <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">Extract from a document or email</h1>
-      <p className="mt-2 text-slate-600">Upload a PNG/JPG image or paste email text. You will review everything before it is saved.</p>
-      <form onSubmit={handleExtract} className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="grid grid-cols-2 rounded-lg bg-slate-100 p-1">
-          <button type="button" onClick={() => { setMode('image'); setError(null); }} className={`rounded-md px-3 py-2 text-sm font-semibold transition ${mode === 'image' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600'}`}>Image upload</button>
-          <button type="button" onClick={() => { setMode('text'); setError(null); }} className={`rounded-md px-3 py-2 text-sm font-semibold transition ${mode === 'text' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600'}`}>Paste email text</button>
-        </div>
-        {mode === 'image' ? (
-          <label className="mt-6 block rounded-xl border-2 border-dashed border-slate-300 p-8 text-center transition hover:border-indigo-400">
-            <span className="block font-semibold text-slate-900">Choose a document image</span>
-            <span className="mt-1 block text-sm text-slate-500">PNG, JPG, or JPEG · up to 10 MB</span>
-            <input className="sr-only" type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg" onChange={handleFileChange} />
-            {file && <span className="mt-4 block text-sm font-medium text-indigo-700">Selected: {file.name}</span>}
-          </label>
-        ) : (
-          <Field label="Email text"><textarea required rows={11} value={text} onChange={(event) => setText(event.target.value)} placeholder="Paste the relevant email or receipt text here…" /></Field>
-        )}
-        {error && <div className="mt-5"><ErrorNotice message={error} /></div>}
-        <button disabled={isExtracting} className="mt-6 w-full rounded-lg bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60">{isExtracting ? 'Extracting details…' : 'Extract details'}</button>
-      </form>
-    </section>
-  );
+  const navigate = useNavigate(); const { success } = useToast(); const [mode, setMode] = useState<'image' | 'text'>('image'); const [file, setFile] = useState<File | null>(null); const [text, setText] = useState(''); const [draft, setDraft] = useState<ItemDraft | null>(null); const [error, setError] = useState<string | null>(null); const [busy, setBusy] = useState(false);
+  const set = <K extends keyof ItemDraft>(key: K, value: ItemDraft[K]) => setDraft((current) => current ? { ...current, [key]: value } : current);
+  function chooseFile(event: ChangeEvent<HTMLInputElement>) { const next = event.target.files?.[0] ?? null; if (!next) return setFile(null); if (!['image/png', 'image/jpeg'].includes(next.type)) return setError('Only PNG, JPG, and JPEG images are supported.'); if (next.size > maxBytes) return setError('The image must be 10 MB or smaller.'); setError(null); setFile(next); }
+  async function extract(event: FormEvent) { event.preventDefault(); setError(null); setBusy(true); try { setDraft(mode === 'image' ? draftFrom(await extractFromImage(file ?? (() => { throw new Error('Choose an image first.'); })()), 'PHOTO', null) : draftFrom(await extractFromText(text), 'EMAIL', text)); success('Details extracted. Review them before saving.'); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not extract information. Please enter manually.'); } finally { setBusy(false); } }
+  async function save(event: FormEvent) { event.preventDefault(); if (!draft) return; setBusy(true); setError(null); try { await createItem({ ...draft, renewalDate: draft.renewalDate ? new Date(`${toDate(draft.renewalDate)}T00:00:00.000Z`).toISOString() : null, cancelByDate: draft.cancelByDate ? new Date(`${toDate(draft.cancelByDate)}T00:00:00.000Z`).toISOString() : null, currency: normalizeCurrency(draft.currency), notes: draft.notes?.trim() || null }); success('Record saved to Tendly.'); navigate('/'); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to save the record.'); } finally { setBusy(false); } }
+  if (draft) return <div className="review-page"><div className="detail-head"><div><span className="eyebrow">Review extraction</span><h1>Confirm the details</h1><p>Everything can be edited before it becomes a saved record.</p></div><ConfidenceExplanation item={draft} /></div><form className="form-card" onSubmit={save}><div className="form-grid"><Field label="Vendor"><input required value={draft.vendorName ?? ''} onChange={(event) => { set('vendorName', event.target.value); set('merchant', event.target.value); }} /></Field><Field label="Type"><select value={draft.type ?? 'OTHER'} onChange={(event) => set('type', event.target.value as ItemType)}>{types.map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Subscription / plan"><input value={draft.subscription ?? ''} onChange={(event) => set('subscription', event.target.value)} /></Field><Field label="Amount"><input type="number" min="0" step="0.01" value={draft.amount ?? ''} onChange={(event) => set('amount', event.target.value ? Number(event.target.value) : null)} /></Field><Field label="Currency"><input value={draft.currency ?? ''} onChange={(event) => set('currency', event.target.value.toUpperCase() || null)} /></Field><Field label="Status"><select value={draft.status} onChange={(event) => set('status', event.target.value as ItemStatus)}>{statuses.map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Renewal date"><input type="date" value={toDate(draft.renewalDate)} onChange={(event) => set('renewalDate', event.target.value || null)} /></Field><Field label="Cancel by"><input type="date" value={toDate(draft.cancelByDate)} onChange={(event) => set('cancelByDate', event.target.value || null)} /></Field></div><Field label="Notes"><textarea rows={5} value={draft.notes ?? ''} onChange={(event) => set('notes', event.target.value || null)} /></Field>{error && <div className="inline-error">{error}</div>}<div className="form-actions"><button type="button" className="button secondary" onClick={() => setDraft(null)}>Start over</button><button className="button primary" disabled={busy}>{busy ? 'Saving…' : 'Save record'}</button></div></form></div>;
+  return <div className="upload-page"><section className="page-hero"><div><span className="eyebrow">New record</span><h1>Turn a document into a reminder.</h1><p>Upload a receipt, bill, or warranty card—or paste an email—to create a record in seconds.</p></div></section><form className="upload-card" onSubmit={extract}><div className="mode-tabs"><button type="button" className={mode === 'image' ? 'selected' : ''} onClick={() => setMode('image')}><FileImage size={18} />Upload image</button><button type="button" className={mode === 'text' ? 'selected' : ''} onClick={() => setMode('text')}><FileText size={18} />Paste email</button></div>{mode === 'image' ? <label className="drop-zone"><FileImage size={30} /><strong>{file ? file.name : 'Drop your document here'}</strong><span>{file ? 'Ready to extract. You can choose another image below.' : 'Choose a clear image of a receipt, bill, subscription, or warranty.'}</span><small>PNG, JPG, or JPEG · maximum 10 MB</small><input type="file" accept="image/png,image/jpeg" onChange={chooseFile} /></label> : <Field label="Email text"><textarea rows={12} value={text} onChange={(event) => setText(event.target.value)} placeholder="Paste the relevant email content here…" /></Field>}{error && <div className="inline-error">{error}</div>}<button className="button primary full" disabled={busy}><Sparkles size={17} />{busy ? 'Extracting…' : 'Extract details'}</button></form></div>;
 }
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return <label className="block text-sm font-medium text-slate-700"><span className="mb-1.5 block">{label}</span>{children}</label>;
-}
-
-function ErrorNotice({ message }: { message: string }) {
-  return <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" role="alert">{message}</div>;
-}
+function Field({ label, children }: { label: string; children: ReactNode }) { return <label className="field"><span>{label}</span>{children}</label>; }

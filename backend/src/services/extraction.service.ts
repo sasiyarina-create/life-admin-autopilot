@@ -1,4 +1,5 @@
-import OpenAI from 'openai';
+import { GoogleGenAI } from '@google/genai';
+import { normalizeCurrency } from '../utils/currency.js';
 
 export type ExtractedItem = {
   type: 'SUBSCRIPTION' | 'BILL' | 'WARRANTY' | 'APPOINTMENT' | 'OTHER' | null;
@@ -20,29 +21,8 @@ export type ExtractionInput =
   | { kind: 'image'; dataUrl: string }
   | { kind: 'text'; text: string };
 
-const extractionSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['type', 'merchant', 'subscription', 'vendorName', 'amount', 'currency', 'frequency', 'renewalDate', 'cancelBefore', 'cancelByDate', 'status', 'confidence', 'notes'],
-  properties: {
-    type: { anyOf: [{ enum: ['SUBSCRIPTION', 'BILL', 'WARRANTY', 'APPOINTMENT', 'OTHER'] }, { type: 'null' }] },
-    merchant: { anyOf: [{ type: 'string' }, { type: 'null' }] },
-    subscription: { anyOf: [{ type: 'string' }, { type: 'null' }] },
-    vendorName: { anyOf: [{ type: 'string' }, { type: 'null' }] },
-    amount: { anyOf: [{ type: 'number' }, { type: 'null' }] },
-    currency: { anyOf: [{ type: 'string' }, { type: 'null' }] },
-    frequency: { anyOf: [{ enum: ['monthly', 'weekly', 'yearly', 'unknown'] }, { type: 'null' }] },
-    renewalDate: { anyOf: [{ type: 'string' }, { type: 'null' }] },
-    cancelBefore: { anyOf: [{ type: 'string' }, { type: 'null' }] },
-    cancelByDate: { anyOf: [{ type: 'string' }, { type: 'null' }] },
-    status: { enum: ['ACTIVE', 'CANCELLED', 'EXPIRED', 'NEEDS_REVIEW'] },
-    confidence: { type: 'number', minimum: 0, maximum: 1 },
-    notes: { anyOf: [{ type: 'string' }, { type: 'null' }] },
-  },
-} as const;
-
 const instructions = `Extract personal life-administration information from the supplied document or email.
-Return only fields supported by the provided JSON schema. Never invent values. Use null whenever a value is missing, ambiguous, or cannot be established. Use YYYY-MM-DD for renewalDate, cancelBefore, and cancelByDate. For subscriptions, merchant is the company name, subscription is the full plan name, vendorName should equal merchant, and frequency is monthly, weekly, yearly, or unknown. Treat phrases such as "per month" as monthly. Set cancelBefore and cancelByDate to the same date when the text says "Cancel before". Use NEEDS_REVIEW when important information is missing or unclear. Lower confidence when information is incomplete or uncertain.`;
+Return only a JSON object with every one of these fields: type, merchant, subscription, vendorName, amount, currency, frequency, renewalDate, cancelBefore, cancelByDate, status, confidence, notes. Never use Markdown or code fences. Never invent values. Use null whenever a value is missing, ambiguous, or cannot be established. type must be SUBSCRIPTION, BILL, WARRANTY, APPOINTMENT, OTHER, or null. status must be ACTIVE, CANCELLED, EXPIRED, or NEEDS_REVIEW. frequency must be monthly, weekly, yearly, unknown, or null. confidence must be a number from 0 to 1. Use YYYY-MM-DD for renewalDate, cancelBefore, and cancelByDate. For subscriptions, merchant is the company name, subscription is the full plan name, vendorName should equal merchant, and frequency is monthly, weekly, yearly, or unknown. Treat phrases such as "per month" as monthly. Set cancelBefore and cancelByDate to the same date when the text says "Cancel before". Use NEEDS_REVIEW when important information is missing or unclear. Lower confidence when information is incomplete or uncertain.`;
 
 function toIsoDate(value: string | undefined): string | null {
   if (!value) return null;
@@ -67,7 +47,7 @@ function extractSimpleSubscriptionEmail(text: string): ExtractedItem | null {
   const merchant = subscription?.split(/\s+/)[0] ?? null;
   const amountMatch = normalized.match(/\bfor\s+(RM|MYR|USD|EUR|GBP|\$|€|£)\s*([0-9][0-9,]*(?:\.\d{1,2})?)/i);
   const amount = amountMatch ? Number(amountMatch[2].replace(/,/g, '')) : null;
-  const currency = amountMatch ? amountMatch[1].toUpperCase() : null;
+  const currency = amountMatch ? normalizeCurrency(amountMatch[1]) : null;
   const renewalDate = toIsoDate(normalized.match(/\brenews\s+on\s+([a-z]+\s+\d{1,2},?\s+\d{4})/i)?.[1]);
   const cancelBefore = toIsoDate(normalized.match(/\bcancel\s+before\s+([a-z]+\s+\d{1,2},?\s+\d{4})/i)?.[1]);
   const frequency = /\b(per\s+month|monthly)\b/i.test(normalized)
@@ -128,42 +108,42 @@ function validateExtraction(value: unknown): ExtractedItem {
   if (!extracted.type || !extracted.vendorName || extracted.amount === null) {
     extracted.status = 'NEEDS_REVIEW';
   }
-  return extracted;
+  return { ...extracted, currency: normalizeCurrency(extracted.currency) };
 }
 
-/** Uses OpenAI Structured Outputs; response text is JSON only under the strict schema above. */
+function parseImageDataUrl(dataUrl: string): { mimeType: string; data: string } {
+  const match = dataUrl.match(/^data:([^;]+);base64,([A-Za-z0-9+/=]+)$/);
+  if (!match) throw new Error('Could not extract information. Please enter manually.');
+  return { mimeType: match[1], data: match[2] };
+}
+
+function removeMarkdownCodeFences(text: string): string {
+  return text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+}
+
 export async function extractDocument(input: ExtractionInput): Promise<ExtractedItem> {
   if (input.kind === 'text') {
     const simpleExtraction = extractSimpleSubscriptionEmail(input.text);
     if (simpleExtraction) return simpleExtraction;
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  const model = process.env.OPENAI_MODEL;
-  if (!apiKey || !model) throw new Error('AI extraction is not configured.');
+  const apiKey = process.env.GEMINI_API_KEY;
+  const model = process.env.GEMINI_MODEL;
+  if (!apiKey || !model) throw new Error('Could not extract information. Please enter manually.');
 
-  const client = new OpenAI({ apiKey, timeout: 30_000 });
-  const documentContent =
-    input.kind === 'image'
-      ? [{ type: 'input_image' as const, image_url: input.dataUrl, detail: 'high' as const }]
-      : [{ type: 'input_text' as const, text: input.text }];
-
-  const response = await client.responses.create({
-    model,
-    input: [
-      { role: 'system', content: [{ type: 'input_text', text: instructions }] },
-      { role: 'user', content: documentContent },
-    ],
-    text: {
-      format: {
-        type: 'json_schema',
-        name: 'life_admin_item_extraction',
-        strict: true,
-        schema: extractionSchema,
-      },
-    },
-  });
-
-  if (!response.output_text) throw new Error('No structured extraction returned.');
-  return validateExtraction(JSON.parse(response.output_text) as unknown);
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+    const contents = input.kind === 'image'
+      ? [
+          { text: `${instructions}\n\nExtract information from this image.` },
+          { inlineData: parseImageDataUrl(input.dataUrl) },
+        ]
+      : `${instructions}\n\nSource text:\n${input.text}`;
+    const response = await ai.models.generateContent({ model, contents });
+    const text = response.text;
+    if (!text) throw new Error('Could not extract information. Please enter manually.');
+    return validateExtraction(JSON.parse(removeMarkdownCodeFences(text)) as unknown);
+  } catch {
+    throw new Error('Could not extract information. Please enter manually.');
+  }
 }

@@ -31,6 +31,55 @@ model Item {
   @@index([cancelByDate])
 }
 
+model GmailConnection {
+  id           String   @id @default("default")
+  email        String
+  refreshToken String
+  lastSyncAt   DateTime?
+  importedCount Int      @default(0)
+  lastScanned  Int      @default(0)
+  lastRelevant Int      @default(0)
+  lastDuplicates Int    @default(0)
+  lastIgnored  Int      @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model GmailImport {
+  id             String   @id @default(cuid())
+  gmailMessageId String   @unique
+  threadId       String?
+  sender         String?
+  subject        String?
+  receivedAt     DateTime?
+  itemId         String?
+  createdAt      DateTime @default(now())
+}
+
+model PendingImport {
+  id                  String   @id @default(cuid())
+  gmailMessageId      String   @unique
+  sender              String?
+  subject             String?
+  preview             String
+  vendor              String
+  type                String
+  amount              Float?
+  currency            String?
+  renewalDate         DateTime?
+  cancelByDate        DateTime?
+  confidence          Float
+  confidenceReasons   String
+  notes               String?
+  status              String   @default("PENDING")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([status])
+  @@index([type])
+  @@index([confidence])
+}
+
 /// SQLite does not support Prisma database enums. Application code will validate
 /// these string values: ItemType = SUBSCRIPTION | BILL | WARRANTY | APPOINTMENT | OTHER
 /// ItemStatus = ACTIVE | CANCELLED | EXPIRED | NEEDS_REVIEW

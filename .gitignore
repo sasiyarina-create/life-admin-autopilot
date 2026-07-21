@@ -6,6 +6,10 @@ uploads/*
 !uploads/.gitkeep
 prisma/dev.db
 prisma/dev.db-journal
+prisma/sessions.sqlite
 coverage
+*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
 .DS_Store
 .Rhistory

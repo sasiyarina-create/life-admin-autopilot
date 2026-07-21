@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { AppError } from './app-error.js';
+import { normalizeCurrency } from './currency.js';
 
 const itemTypes = ['SUBSCRIPTION', 'BILL', 'WARRANTY', 'APPOINTMENT', 'OTHER'] as const;
 const itemStatuses = ['ACTIVE', 'CANCELLED', 'EXPIRED', 'NEEDS_REVIEW'] as const;
@@ -88,7 +89,10 @@ function readInput(body: unknown, partial: boolean): MutableItemInput {
   const cancelByDate = optionalDate(body.cancelByDate, 'cancelByDate');
   if (cancelByDate !== undefined) data.cancelByDate = cancelByDate;
 
-  for (const field of ['currency', 'sourceRawText', 'notes'] as const) {
+  const currency = optionalString(body.currency, 'currency');
+  if (currency !== undefined) data.currency = normalizeCurrency(currency);
+
+  for (const field of ['sourceRawText', 'notes'] as const) {
     const value = optionalString(body[field], field);
     if (value !== undefined) data[field] = value;
   }

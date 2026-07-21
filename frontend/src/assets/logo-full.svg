@@ -1,0 +1,20 @@
+<svg width="680" height="220" viewBox="0 0 680 220" xmlns="http://www.w3.org/2000/svg" role="img">
+<title>Tendly logo</title>
+<desc>A dark navy circular badge containing a white "T" monogram with an amber accent dot at the top right corner, next to the wordmark "Tendly" with tagline "automated life admin".</desc>
+<style>
+.word { font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif; font-weight: 700; font-size: 58px; fill: #1B2733; letter-spacing: -0.5px; }
+.tag { font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif; font-weight: 600; font-size: 14px; fill: #8A94A0; letter-spacing: 2.5px; }
+</style>
+
+<circle cx="110" cy="110" r="70" fill="#1B2A44"/>
+
+<rect x="75" y="88" width="70" height="18" rx="6" fill="#FFFFFF"/>
+<rect x="100" y="88" width="20" height="58" rx="6" fill="#FFFFFF"/>
+
+<circle cx="167" cy="60" r="15" fill="#1B2A44"/>
+<circle cx="167" cy="60" r="11" fill="#E8A33D"/>
+
+<text x="215" y="118" class="word">Tendly</text>
+<text x="217" y="148" class="tag">AUTOMATED LIFE ADMIN</text>
+
+</svg>

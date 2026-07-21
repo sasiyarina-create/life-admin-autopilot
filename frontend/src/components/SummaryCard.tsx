@@ -1,22 +1,27 @@
-interface SummaryCardProps {
-  label: string;
-  value: string;
-  detail: string;
-  tone?: 'indigo' | 'amber' | 'slate';
+import type { ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+function useInitialCount(value: number | null, duration = 650) {
+  const [display, setDisplay] = useState(0);
+  const hasAnimated = useRef(false);
+  useEffect(() => {
+    if (value === null || hasAnimated.current) return;
+    hasAnimated.current = true;
+    const startedAt = performance.now();
+    let frame = 0;
+    const animate = (now: number) => {
+      const progress = Math.min((now - startedAt) / duration, 1);
+      setDisplay(Math.round(value * (1 - (1 - progress) ** 3)));
+      if (progress < 1) frame = requestAnimationFrame(animate);
+    };
+    frame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frame);
+  }, [duration, value]);
+  return display;
 }
 
-const tones = {
-  indigo: 'bg-indigo-50 text-indigo-700',
-  amber: 'bg-amber-50 text-amber-700',
-  slate: 'bg-slate-100 text-slate-700',
-};
-
-export function SummaryCard({ label, value, detail, tone = 'indigo' }: SummaryCardProps) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${tones[tone]}`}>{label}</span>
-      <p className="mt-4 text-3xl font-semibold tracking-tight text-slate-950">{value}</p>
-      <p className="mt-1 text-sm text-slate-500">{detail}</p>
-    </section>
-  );
+export function SummaryCard({ label, value, detail, icon, numericValue, formatValue }: { label: string; value: string; detail: string; icon: ReactNode; numericValue?: number | null; formatValue?: (value: number) => string }) {
+  const animated = useInitialCount(numericValue ?? null);
+  const displayedValue = numericValue === undefined || numericValue === null ? value : formatValue ? formatValue(animated) : String(animated);
+  return <article className="metric-card"><div className="metric-icon">{icon}</div><p>{label}</p><strong>{displayedValue}</strong><span>{detail}</span></article>;
 }
