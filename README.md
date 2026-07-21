@@ -105,7 +105,7 @@ Provides insights into:
 
 # System Architecture
 
-
+![System Architecture](screenshots/architecture.png)
 
 The system follows a full-stack architecture combining frontend technologies, backend services, external APIs, AI processing, and database management.
 
